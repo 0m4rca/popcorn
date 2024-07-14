@@ -7,10 +7,10 @@ const average = (arr) =>
 const KEY = "e1d82a24";
 
 export default function App() {
-  const [query, setQuery] = useState("interstellar");
+  const [query, setQuery] = useState("");
   const [movies, setMovies] = useState([]);
   const [watched, setWatched] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
@@ -32,12 +32,15 @@ export default function App() {
 
   useEffect(
     function () {
+      const controller = new AbortController();
+
       async function fetchMovies() {
         try {
           setIsLoading(true);
           setError("");
           const res = await fetch(
-            `http://www.omdbapi.com/?s=${query}&apikey=${KEY}`
+            `http://www.omdbapi.com/?s=${query}&apikey=${KEY}`,
+            { signal: controller.signal }
           );
 
           if (!res.ok)
@@ -48,8 +51,12 @@ export default function App() {
           if (data.Response === "False") throw new Error("Movie not found");
 
           setMovies(data.Search);
+          setError("");
         } catch (err) {
-          setError(err.message);
+          if (err.name !== "AbortError") {
+            console.log(err.message);
+            setError(err.message);
+          }
         } finally {
           setIsLoading(false);
         }
@@ -60,10 +67,16 @@ export default function App() {
         setError("");
         return;
       }
+      handleCloseMovie();
       fetchMovies();
+
+      return function () {
+        controller.abort();
+      };
     },
     [query]
   );
+
   return (
     <>
       <NavBar>
@@ -250,6 +263,23 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
 
   useEffect(
     function () {
+      function callback(e) {
+        if (e.code === "Escape") {
+          onCloseMovie();
+        }
+      }
+
+      document.addEventListener("keydown", callback);
+
+      return function () {
+        document.removeEventListener("keydown", callback);
+      };
+    },
+    [onCloseMovie]
+  );
+
+  useEffect(
+    function () {
       async function getMovieDetails() {
         setIsLoading(true);
         const res = await fetch(
@@ -268,6 +298,10 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     function () {
       if (!title) return;
       document.title = `Movie | ${title}`;
+
+      return function () {
+        document.title = "usePopcorn";
+      };
     },
     [title]
   );
@@ -377,7 +411,7 @@ function WatchedMovie({ movie, onDeleteWatched }) {
       <div>
         <p>
           <span>⭐️</span>
-          <span>{movie.imbdRating}</span>
+          <span>{movie.imdbRating}</span>
         </p>
         <p>
           <span>🌟</span>
